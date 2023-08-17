@@ -1,10 +1,17 @@
 ﻿
 // warning C4996: 'fopen': This function or variable may be unsafe. Consider using fopen_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
 #define _CRT_SECURE_NO_WARNINGS
+#define _REALTYPE_DOUBLE
 
 // Используем библиотеки stl
 #include <iostream>
 #include <chrono>
+
+#ifdef _REALTYPE_DOUBLE
+#define REALTYPE double
+#else
+#define REALTYPE float
+#endif
 
 // включаем пространство имен
 using namespace std;
@@ -17,18 +24,18 @@ using namespace std;
 #define SMAW_64		64
 #define SMAW_128	128
 
-// определяем тип - указатель на double как LPDOUBLE
-typedef double * LPDOUBLE;
+// определяем тип - указатель на REALTYPE как LPREALTYPE
+typedef REALTYPE * LPREALTYPE;
 
 // Функция Simple moving average
 // bool puresignal			- особый режим функции (плавная)
-// LPDOUBLE& calculation	- выходной массив (выделять память не нужно)
-// double* indication		- входной массив
+// LPREALTYPE& calculation	- выходной массив (выделять память не нужно)
+// REALTYPE* indication		- входной массив
 // unsigned long width		- размер окна
 // unsigned long size		- размер входного массива
 // bool& error				- индикатор ошибки
 
-double SMA(bool puresignal,LPDOUBLE &calculation, double *indication, unsigned long width, unsigned long size, bool &error) {
+REALTYPE SMA(bool puresignal,LPREALTYPE &calculation, REALTYPE *indication, unsigned long width, unsigned long size, bool &error) {
 	if(size <= 0){ // если размер входных данных меньше или равен нулю то, возвращаем с ошибкой
 		error = false;
 		return 1.0;
@@ -39,24 +46,24 @@ double SMA(bool puresignal,LPDOUBLE &calculation, double *indication, unsigned l
 		return 2.0;
 	}
 
-	unsigned long corr_size = (unsigned long)(round((double)size/(double)width)*(double)width); // корректируем размер входномо массива
-	calculation = (double*)malloc(sizeof(double)*(corr_size)); // выделяем память в куче под выходной массив данных
-	memset(calculation,0,sizeof(double)*(corr_size)); // задаём на выходной массив нули
+	unsigned long corr_size = (unsigned long)(round((REALTYPE)size/(REALTYPE)width)*(REALTYPE)width); // корректируем размер входномо массива
+	calculation = (REALTYPE*)malloc(sizeof(REALTYPE)*(corr_size)); // выделяем память в куче под выходной массив данных
+	memset(calculation,0,sizeof(REALTYPE)*(corr_size)); // задаём на выходной массив нули
 
 	// определяем нынешнее время since epoc в наносекундах
 	uint64_t time_old = chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
-	double old_mm = indication[0]; // базовое значение - как старое
+	REALTYPE old_mm = indication[0]; // базовое значение - как старое
 	unsigned long c_count = 0; // счётчик элементов для calculation
 	for (unsigned long i = 0; i < corr_size; i += width) { // шаг с размером окна 0 - 4, 4 - 8 итд...
 		// среднее арифметическое (в промежутке)
-		double mm = 0.0;
+		REALTYPE mm = 0.0;
 		for (unsigned long j = 0; j < width; j++) {
 			mm += indication[i + j];
-		} mm /= (double)width;
+		} mm /= (REALTYPE)width;
 
 		if(puresignal){ // Усложнение задачи (!), для формирофания более чистой выходной синусоиды (Может быть полезно при больших промежутках), ВНИМАНИЕ! контролируется входным параметром puresignal
-			double dstep = (mm-old_mm)/(double)width; // разница между предыдущим и нынешнем значениями деленное на размер окна
+			REALTYPE dstep = (mm-old_mm)/(REALTYPE)width; // разница между предыдущим и нынешнем значениями деленное на размер окна
 			for (unsigned long j = 0; j < width; j++) {
 				calculation[c_count] = old_mm; // заполняем выходной массив откорректированными значениями
 				old_mm += dstep; // плавное перетекание от предыдущего к нынешнему значению mm
@@ -72,7 +79,7 @@ double SMA(bool puresignal,LPDOUBLE &calculation, double *indication, unsigned l
 
 	// вычисляем потраченое время в наносекуднах на алгоритм работы SMA функции
 	uint64_t t2 = chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch()).count() - time_old;
-	return (double)(t2)/1000000000.0; // возвращаем время в секундах затраченое на выполнение алгоритма SMA
+	return (REALTYPE)(t2)/1000000000.0; // возвращаем время в секундах затраченое на выполнение алгоритма SMA
 }
 
 int main(int argc,char **argv){
@@ -84,10 +91,10 @@ int main(int argc,char **argv){
 
 	// (ВЫВОД)
 	FILE *noise_sinef = fopen("noise_sine.txt","w"); // создаем перезаписываемый файл для значений шумной синусоиды
-	double step = 0.0; // переменная - шаг синусоиды
-	double *noise_sine = (double*)malloc(sizeof(double)*s_size); // выделяем память в куче под входной массив с шумной синусоидой
+	REALTYPE step = 0.0; // переменная - шаг синусоиды
+	REALTYPE *noise_sine = (REALTYPE*)malloc(sizeof(REALTYPE)*s_size); // выделяем память в куче под входной массив с шумной синусоидой
 	for(unsigned long i = 0;i<s_size;i++){
-		noise_sine[i] = sin(step)+(double)(rand()%s_size)*0.000021; // синус + рандомный шум
+		noise_sine[i] = sin(step)+(REALTYPE)(rand()%s_size)*0.000021; // синус + рандомный шум
 		fprintf(noise_sinef,"%f\n",noise_sine[i]); // записываем значения в файл (запись чисел с плавющей точной будет производится не с точной а запятой см. стр. 79)
 		step += 0.01; // шаг синусоизы 0.01
 	} fclose(noise_sinef); //закрываем файл
@@ -95,9 +102,9 @@ int main(int argc,char **argv){
 
 	unsigned int modes[6] = {SMAW_4,SMAW_8,SMAW_16,SMAW_32,SMAW_64,SMAW_128};
 	bool err[6] = {false,false,false,false,false,false}; // переменная ошибки
-	double* calculations[6] = {0,0,0,0,0,0}; // массив выходных данным
-	double t[6] = {0.0,0.0,0.0,0.0,0.0,0.0}; // время выполнения
-	double t_dt = 0.0; // общее время выполнения для всех режимов
+	REALTYPE* calculations[6] = {0,0,0,0,0,0}; // массив выходных данным
+	REALTYPE t[6] = {0.0,0.0,0.0,0.0,0.0,0.0}; // время выполнения
+	REALTYPE t_dt = 0.0; // общее время выполнения для всех режимов
 
 	// РАБОТА
 	for(unsigned char i = 0;i<6;i++){
